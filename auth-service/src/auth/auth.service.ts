@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { IdentityService } from './identity.service';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 export interface JwtPayload {
   sub: number; // user id
@@ -16,27 +17,42 @@ export interface JwtPayload {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly userServiceUrl: string;
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly identityService: IdentityService,
+    private readonly httpService: HttpService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    this.userServiceUrl = this.config.get<string>(
+      'USER_SERVICE_URL',
+      'http://localhost:3002',
+    );
+  }
 
   /**
-   * Verify credentials against the local identity store, then sign and
-   * return a JWT. (In production the identity check would be an SSO exchange.)
+   * Verify credentials against user-service, then sign and return a JWT.
    */
   async login(username: string, password: string) {
-    const user = await this.identityService.validateCredentials(
-      username,
-      password,
-    );
+    let data: { valid: boolean; user: any };
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.userServiceUrl}/users/validate-credentials`,
+          { username, password },
+        ),
+      );
+      data = response.data;
+    } catch (err) {
+      this.logger.error(`user-service unreachable: ${err.message}`);
+      throw new UnauthorizedException('Authentication service unavailable');
+    }
 
-    if (!user) {
+    if (!data.valid || !data.user) {
       throw new UnauthorizedException('Invalid username or password');
     }
 
+    const user = data.user;
     const payload: JwtPayload = {
       sub: user.id,
       username: user.username,
@@ -65,7 +81,7 @@ export class AuthService {
     try {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
       return { valid: true, payload };
-    } catch (err: any) {
+    } catch (err) {
       this.logger.warn(`Token validation failed: ${err.message}`);
       return { valid: false, payload: null };
     }
