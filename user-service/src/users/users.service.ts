@@ -1,78 +1,31 @@
 import { Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
-import { User, SafeUser } from "./user.entity";
+import { User } from "./user.entity";
 
+/**
+ * Example downstream business service (think "order-service"): it just owns
+ * and serves resource data. Requests reach it only after the api-gateway has
+ * already authenticated them, so it does no credential or token work itself.
+ */
 @Injectable()
 export class UsersService implements OnModuleInit {
   // In-memory store. Swap for a real DB (TypeORM/Prisma) in production.
   private users: User[] = [];
 
-  /** Seed a couple of demo users with hashed passwords on startup. */
-  async onModuleInit() {
-    const seed = [
-      {
-        username: "admin",
-        email: "admin@erp.com",
-        password: "admin123",
-        roles: ["admin"],
-      },
-      {
-        username: "john",
-        email: "john@erp.com",
-        password: "john123",
-        roles: ["user"],
-      },
+  /** Seed a couple of demo records on startup. */
+  onModuleInit() {
+    this.users = [
+      { id: 1, username: "admin", email: "admin@erp.com", roles: ["admin"] },
+      { id: 2, username: "john", email: "john@erp.com", roles: ["user"] },
     ];
-
-    let id = 1;
-    for (const u of seed) {
-      this.users.push({
-        id: id++,
-        username: u.username,
-        email: u.email,
-        passwordHash: await bcrypt.hash(u.password, 10),
-        roles: u.roles,
-      });
-    }
   }
 
-  private toSafe(user: User): SafeUser {
-    const { passwordHash, ...safe } = user;
-    return safe;
+  findAll(): User[] {
+    return this.users;
   }
 
-  findAll(): SafeUser[] {
-    console.log("users", this.users);
-    return this.users.map((u) => this.toSafe(u));
-  }
-
-  findById(id: number): SafeUser {
+  findById(id: number): User {
     const user = this.users.find((u) => u.id === id);
     if (!user) throw new NotFoundException(`User ${id} not found`);
-    return this.toSafe(user);
-  }
-
-  findByUsername(username: string): SafeUser {
-    const user = this.users.find((u) => u.username === username);
-    if (!user) throw new NotFoundException(`User ${username} not found`);
-    return this.toSafe(user);
-  }
-
-  /**
-   * Verify a username/password pair.
-   * Returns the safe user when valid, or null when invalid.
-   * Called internally by the auth-service during login.
-   */
-  async validateCredentials(
-    username: string,
-    password: string,
-  ): Promise<SafeUser | null> {
-    const user = this.users.find((u) => u.username === username);
-    if (!user) return null;
-
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return null;
-
-    return this.toSafe(user);
+    return user;
   }
 }

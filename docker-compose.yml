@@ -1,4 +1,19 @@
 services:
+  # Identity authority: owns the user/credential store and issues/validates JWTs.
+  auth-service:
+    build: ./auth-service
+    container_name: erp-auth-service
+    environment:
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-3600s}
+    expose:
+      - "3001"
+    networks:
+      - erp-net
+    restart: unless-stopped
+
+  # Example downstream business resource service (analogous to an order-service).
   user-service:
     build: ./user-service
     container_name: erp-user-service
@@ -10,34 +25,20 @@ services:
       - erp-net
     restart: unless-stopped
 
-  auth-service:
-    build: ./auth-service
-    container_name: erp-auth-service
-    environment:
-      PORT: 3001
-      # Inter-service URL uses the compose service name as hostname
-      USER_SERVICE_URL: http://user-service:3002
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-3600s}
-    expose:
-      - "3001"
-    depends_on:
-      - user-service
-    networks:
-      - erp-net
-    restart: unless-stopped
-
   api-gateway:
     build: ./api-gateway
     container_name: erp-api-gateway
     environment:
       PORT: 3000
+      # Inter-service URLs use the compose service name as hostname
       AUTH_SERVICE_URL: http://auth-service:3001
+      USER_SERVICE_URL: http://user-service:3002
     # Only the gateway is published to the host
     ports:
       - "3000:3000"
     depends_on:
       - auth-service
+      - user-service
     networks:
       - erp-net
     restart: unless-stopped
