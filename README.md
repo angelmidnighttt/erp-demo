@@ -1,96 +1,98 @@
-# ERP Demo — NestJS Microservices
+<p align="center">
+  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+</p>
 
-Three independent NestJS services communicating over HTTP.
+[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
+[circleci-url]: https://circleci.com/gh/nestjs/nest
 
-```
-                       ┌─────────────────────┐
-  client  ──login──►   │   api-gateway :3000 │
-                       │  (public entry)     │
-                       └──────────┬──────────┘
-              proxy /auth/login   │   POST /auth/validate (token check)
-                       ┌──────────▼──────────┐
-                       │  auth-service :3001 │  ── signs & verifies JWT
-                       └──────────┬──────────┘
-            POST /users/validate-credentials
-                       ┌──────────▼──────────┐
-                       │  user-service :3002 │  ── users + bcrypt passwords
-                       └─────────────────────┘
-```
+  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
+    <p align="center">
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
+<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
+<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
+<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
+<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
+  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
+    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
+  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+</p>
+  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
+  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-| Service | Port | Responsibility |
-|---|---|---|
-| **api-gateway** | 3000 | Public entry point. Proxies `/auth/login`; protects `/users/*` with a guard that validates the token via auth-service, then forwards the request. |
-| **auth-service** | 3001 | `POST /auth/login` (checks credentials via user-service, signs a JWT) and `POST /auth/validate` (verifies a JWT). Holds the JWT secret. |
-| **user-service** | 3002 | In-memory users with bcrypt-hashed passwords. `POST /users/validate-credentials` (internal), `GET /users`, `GET /users/:id`. |
+## Description
 
-## Token flow
+[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-1. Client `POST /auth/login` → gateway → **auth-service**.
-2. auth-service asks **user-service** to verify username/password (bcrypt).
-3. auth-service signs a JWT (`{ sub, username, roles }`) and returns it.
-4. Client calls a protected route, e.g. `GET /users`, with `Authorization: Bearer <token>`.
-5. The gateway's `JwtAuthGuard` calls **auth-service** `POST /auth/validate` to verify the token.
-6. If valid, the gateway attaches the decoded user to the request and proxies to **user-service** (forwarding `x-user-id` / `x-user-roles`).
-
-> The JWT secret lives **only** in the auth-service. The gateway never verifies tokens itself — it delegates (token introspection). Set the same `JWT_SECRET` in `auth-service/.env` for both signing and verifying.
-
-## Run
-
-Open **three terminals** (start order doesn't strictly matter, but this is cleanest):
-
-```powershell
-# Terminal 1
-cd user-service ; npm install ; npm run start:dev
-
-# Terminal 2
-cd auth-service ; npm install ; npm run start:dev
-
-# Terminal 3
-cd api-gateway ; npm install ; npm run start:dev
-```
-
-## Demo users
-
-| username | password | roles |
-|---|---|---|
-| `admin` | `admin123` | admin |
-| `john`  | `john123`  | user |
-
-## Try it (PowerShell)
-
-```powershell
-# 1. Login through the gateway
-$res = Invoke-RestMethod -Uri http://localhost:3000/auth/login -Method Post `
-  -ContentType "application/json" `
-  -Body (@{ username = "admin"; password = "admin123" } | ConvertTo-Json)
-$token = $res.access_token
-$token
-
-# 2. Call a protected route with the token
-Invoke-RestMethod -Uri http://localhost:3000/users -Method Get `
-  -Headers @{ Authorization = "Bearer $token" }
-
-# 3. Who am I (decoded from token at the gateway)
-Invoke-RestMethod -Uri http://localhost:3000/users/me -Method Get `
-  -Headers @{ Authorization = "Bearer $token" }
-
-# 4. Without a token → 401 Unauthorized
-Invoke-RestMethod -Uri http://localhost:3000/users -Method Get
-```
-
-## Try it (curl)
+## Project setup
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | jq -r .access_token)
-
-curl http://localhost:3000/users -H "Authorization: Bearer $TOKEN"
+$ npm install
 ```
 
-## Notes for production
+## Compile and run the project
 
-- Replace the in-memory user store with a real DB (TypeORM / Prisma).
-- Move secrets out of `.env` into a secrets manager.
-- Consider TCP/gRPC or a message broker (`@nestjs/microservices`) instead of HTTP between services.
-- Add refresh tokens, rate limiting, and caching of token-validation results at the gateway.
+```bash
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
+```
+
+## Run tests
+
+```bash
+# unit tests
+$ npm run test
+
+# e2e tests
+$ npm run test:e2e
+
+# test coverage
+$ npm run test:cov
+```
+
+## Deployment
+
+When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+
+If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+
+```bash
+$ npm install -g @nestjs/mau
+$ mau deploy
+```
+
+With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+
+## Resources
+
+Check out a few resources that may come in handy when working with NestJS:
+
+- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
+- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
+- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
+- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
+- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
+- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
+- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
+- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+
+## Support
+
+Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+
+## Stay in touch
+
+- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
+- Website - [https://nestjs.com](https://nestjs.com/)
+- Twitter - [@nestframework](https://twitter.com/nestframework)
+
+## License
+
+Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
